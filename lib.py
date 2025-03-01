@@ -146,6 +146,39 @@ def get_input(prompt: str, options: List[str]) -> str:
         print(f"Select one of: {options}")
 
 
+def permission_string_to_numeric(permissions: str) -> int:
+    """Convert permissions string ('rwxr-xr-x') to numeric format
+    https://stackoverflow.com/a/57415662
+
+    >>> mask = permission_string_to_numeric("rwxr-xr-x")
+    >>> oct(mask)
+    '0o755'
+    """
+    assert len(permissions) == 9, 'Bad permission length'
+    assert all(permissions[k] in 'rw-' for k in [0, 1, 3, 4, 6, 7]), 'Bad permission format (read-write)'
+    assert all(permissions[k] in 'xs-' for k in [2, 5]), 'Bad permission format (execute)'
+    assert permissions[8] in 'xt-', 'Bad permission format (execute other)'
+
+    mask = 0
+
+    if permissions[0] == 'r': mask |= stat.S_IRUSR
+    if permissions[1] == 'w': mask |= stat.S_IWUSR
+    if permissions[2] == 'x': mask |= stat.S_IXUSR
+    if permissions[2] == 's': mask |= stat.S_IXUSR | stat.S_ISUID
+
+    if permissions[3] == 'r': mask |= stat.S_IRGRP
+    if permissions[4] == 'w': mask |= stat.S_IWGRP
+    if permissions[5] == 'x': mask |= stat.S_IXGRP
+    if permissions[5] == 's': mask |= stat.S_IXGRP | stat.S_ISGID
+
+    if permissions[6] == 'r': mask |= stat.S_IROTH
+    if permissions[7] == 'w': mask |= stat.S_IWOTH
+    if permissions[8] == 'x': mask |= stat.S_IXOTH
+    if permissions[8] == 't': mask |= stat.S_IXOTH | stat.S_ISVTX
+
+    return mask
+
+
 class App:
     def __init__(self, configuration: Configuration):
         self.configuration = configuration
@@ -174,6 +207,9 @@ class App:
         if file.is_empty():
             self.handle_delete_empty(file)
 
+        if file.access_rights != self.configuration.default_file_access_rights:
+            self.handle_change_access_rights(file)
+
     def handle_delete_empty(self, file: FileDescription):
         should_delete = self.configuration.default_actions.delete
 
@@ -183,5 +219,22 @@ class App:
         if should_delete:
             os.remove(file.path)
             print(f"Deleted file: {file.path}")
+        else:
+            print(f"Skipping file: {file.path}")
+
+    def handle_change_access_rights(self, file: FileDescription):
+        should_change = self.configuration.default_actions.set_default_attributes
+        defaults = self.configuration.default_file_access_rights
+
+        if should_change is None:
+            should_change = get_input(
+                f"File has {file.access_rights}, change to {defaults}?",
+                ["Y", "n"]
+            ) == "Y"
+
+        if should_change:
+            permission_mask = permission_string_to_numeric(defaults)
+            os.chmod(file.path, permission_mask)
+            print(f"Changed access rights for file: {file.path}")
         else:
             print(f"Skipping file: {file.path}")
