@@ -2,14 +2,14 @@
 
 import argparse
 
-from lib import DEFAULT_CONFIG_FILE_PATH, Configuration, DefaultActions, run
+from lib import DEFAULT_CONFIG_FILE_PATH, Configuration, DefaultActions, App
 
 
 def main():
     parser = argparse.ArgumentParser(description="Clean up files")
     parser.add_argument('main_dir', type=str, help='The main directory')
     parser.add_argument('other_dirs', type=str, nargs='+', help='Other directories')
-    parser.add_argument("--config",  type=str, required=False, default=DEFAULT_CONFIG_FILE_PATH,
+    parser.add_argument("--config", type=str, required=False, default=DEFAULT_CONFIG_FILE_PATH,
                         help="Path of the configuration file")
 
     args = parser.parse_args()
@@ -21,7 +21,8 @@ def main():
         default_actions=DefaultActions.create()
     )
 
-    run(config)
+    app = App(config)
+    app.run()
 
 
 if __name__ == "__main__":
