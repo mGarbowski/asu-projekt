@@ -219,7 +219,15 @@ class App:
         print("Looking for empty files to delete")
         for file in self.all_files():
             if file.is_empty():
-                self.handle_delete_empty(file)
+                self.handle_delete(file)
+
+        self.load_file_info()
+        self.list_all_files()
+
+        print("Looking for temporary files to delete")
+        for file in self.all_files():
+            if self.is_temp_file(file):
+                self.handle_delete(file)
 
         self.load_file_info()
         self.list_all_files()
@@ -229,7 +237,7 @@ class App:
             if file.access_rights != self.configuration.default_file_access_rights:
                 self.handle_change_access_rights(file)
 
-    def handle_delete_empty(self, file: FileDescription):
+    def handle_delete(self, file: FileDescription):
         should_delete = self.configuration.default_actions.delete
 
         if should_delete is None:
@@ -257,3 +265,9 @@ class App:
             print(f"Changed access rights for file: {file.path}")
         else:
             print(f"Skipping file: {file.path}")
+
+    def is_temp_file(self, file: FileDescription):
+        return any(
+            file.filename.endswith(extension)
+            for extension in self.configuration.temp_file_suffixes
+        )
