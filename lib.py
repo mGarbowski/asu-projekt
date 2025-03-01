@@ -136,6 +136,16 @@ def list_files_in_directory(directory: str) -> List[str]:
     ]
 
 
+def get_input(prompt: str, options: List[str]) -> str:
+    while True:
+        options = f"[{'/'.join(options)}]"
+        choice = input(f"{prompt}: {options}").strip()
+        if choice in options:
+            return choice
+
+        print(f"Select one of: {options}")
+
+
 class App:
     def __init__(self, configuration: Configuration):
         self.configuration = configuration
@@ -144,7 +154,6 @@ class App:
 
         self.load_file_info()
 
-
     def load_file_info(self):
         self.main_dir_files = FileDescription.from_directory(self.configuration.main_dir)
 
@@ -152,5 +161,27 @@ class App:
             self.other_dirs_files[other_dir] = FileDescription.from_directory(other_dir)
 
     def run(self):
-        print(f"Config: {self.configuration}")
-        pass
+        for file_description in self.main_dir_files:
+            self.handle_file(file_description)
+
+        for directory in self.configuration.other_dirs:
+            for file_description in self.other_dirs_files[directory]:
+                self.handle_file(file_description)
+
+    def handle_file(self, file: FileDescription):
+        print(file.path)
+
+        if file.is_empty():
+            self.handle_delete_empty(file)
+
+    def handle_delete_empty(self, file: FileDescription):
+        should_delete = self.configuration.default_actions.delete
+
+        if should_delete is None:
+            should_delete = get_input("Delete empty file?", ["Y", "n"]) == "Y"
+
+        if should_delete:
+            os.remove(file.path)
+            print(f"Deleted file: {file.path}")
+        else:
+            print(f"Skipping file: {file.path}")
