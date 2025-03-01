@@ -137,8 +137,9 @@ def list_files_in_directory(directory: str) -> List[str]:
 
 
 def get_input(prompt: str, options: List[str]) -> str:
+    options = f"[{'/'.join(options)}]"
+
     while True:
-        options = f"[{'/'.join(options)}]"
         choice = input(f"{prompt}: {options}").strip()
         if choice in options:
             return choice
