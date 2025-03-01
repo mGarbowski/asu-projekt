@@ -117,14 +117,14 @@ class FileDescription:
 
     @property
     def filename(self) -> str:
-        pass
+        return os.path.basename(self.path)
 
     @property
     def extension(self) -> str:
-        pass
+        return os.path.splitext(self.path)[1]
 
     def is_empty(self) -> bool:
-        pass
+        return self.size == 0
 
 
 def list_files_in_directory(directory: str) -> List[str]:
