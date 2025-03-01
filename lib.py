@@ -85,6 +85,7 @@ class FileDescription:
     access_rights: str
     md5_hash: str
     size: int  # Bytes
+    modification_timestamp: float
 
     @classmethod
     def from_path(cls, path: str) -> FileDescription:
@@ -92,7 +93,8 @@ class FileDescription:
             path=path,
             access_rights=cls._get_file_access_rights(path),
             md5_hash=cls._get_file_md5(path),
-            size=cls._get_file_size(path)
+            size=cls._get_file_size(path),
+            modification_timestamp=cls._get_modification_time(path)
         )
 
     @classmethod
@@ -114,6 +116,10 @@ class FileDescription:
     @staticmethod
     def _get_file_access_rights(path: str) -> str:
         return stat.filemode(os.stat(path).st_mode)[1:]
+
+    @staticmethod
+    def _get_modification_time(path: str) -> float:
+        return os.stat(path).st_mtime
 
     @property
     def filename(self) -> str:
@@ -232,6 +238,9 @@ class App:
         self.load_file_info()
         self.list_all_files()
 
+        print("Looking for duplicate files (same content)")
+        self.handle_duplicates()
+
         print("Looking for files with non-standard permissions")
         for file in self.all_files():
             if file.access_rights != self.configuration.default_file_access_rights:
@@ -241,7 +250,7 @@ class App:
         should_delete = self.configuration.default_actions.delete
 
         if should_delete is None:
-            should_delete = get_input(f"{file.path} Delete empty file?", ["Y", "n"]) == "Y"
+            should_delete = get_input(f"{file.path} Delete file?", ["Y", "n"]) == "Y"
 
         if should_delete:
             os.remove(file.path)
@@ -271,3 +280,42 @@ class App:
             file.filename.endswith(extension)
             for extension in self.configuration.temp_file_suffixes
         )
+
+    def get_all_files_matching(self, md5_hash: str) -> List[FileDescription]:
+        return [
+            file
+            for file in self.all_files()
+            if file.md5_hash == md5_hash
+        ]
+
+    def handle_duplicates(self):
+        already_handled_hashes = set()
+
+        for file in self.all_files():
+            if file.md5_hash in already_handled_hashes:
+                continue
+
+            already_handled_hashes.add(file.md5_hash)
+
+            copies = self.get_all_files_matching(file.md5_hash)
+            if len(copies) == 1:
+                continue
+
+            print("Found duplicate files")
+            for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp)):
+                msg = f"[{idx}] {file_copy.path}"
+                if idx == 0:
+                    msg += " --- oldest copy"
+
+                print(msg)
+
+            choice = int(get_input(
+                "Which do you want to leave?",
+                [str(idx) for idx in range(len(copies))]
+            ))
+            print(f"Leaving file {copies[choice].path}")
+            copies.pop(choice)
+
+            for copy in copies:
+                os.remove(copy.path)
+                print(f"Deleted duplicate {copy.path}")
