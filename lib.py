@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from configparser import ConfigParser
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 DEFAULT_CONFIG_FILE_PATH = "~/.clean_files"
+
 
 @dataclass
 class DefaultActions:
@@ -44,10 +46,17 @@ class Configuration:
     default_actions: DefaultActions
 
     @classmethod
-    def create(cls, main_dir: str, other_dirs: List[str], config_path: str, default_actions: DefaultActions) -> Configuration:
+    def create(cls, main_dir: str, other_dirs: List[str], config_path: str,
+               default_actions: DefaultActions) -> Configuration:
+        if not cls.is_configuration_file_accessible(config_path):
+            raise ValueError(f"Cannot access configuration file: {config_path}")
+
+        for path in (main_dir, *other_dirs):
+            if not cls.is_valid_directory(path):
+                raise ValueError(f"Directory {path} does not exist or has insufficient access rights")
+
         config = ConfigParser()
         config.read(config_path)
-
 
         return cls(
             main_dir=main_dir,
@@ -58,6 +67,14 @@ class Configuration:
             temp_file_suffixes=config['DEFAULT']['temp_file_suffixes'].split(', '),
             default_actions=default_actions,
         )
+
+    @staticmethod
+    def is_valid_directory(path: str):
+        return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
+
+    @staticmethod
+    def is_configuration_file_accessible(path: str):
+        return os.path.isfile(path) and os.access(path, os.R_OK)
 
 
 @dataclass
@@ -78,6 +95,7 @@ class FileDescription:
 
     def is_empty(self) -> bool:
         pass
+
 
 def run(config: Configuration):
     print(f"Config: {config}")
