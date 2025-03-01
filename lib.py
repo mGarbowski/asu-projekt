@@ -194,28 +194,46 @@ class App:
         for other_dir in self.configuration.other_dirs:
             self.other_dirs_files[other_dir] = FileDescription.from_directory(other_dir)
 
-    def run(self):
+    def all_files(self):
+        """Generator for all files"""
         for file_description in self.main_dir_files:
-            self.handle_file(file_description)
+            yield file_description
 
         for directory in self.configuration.other_dirs:
             for file_description in self.other_dirs_files[directory]:
-                self.handle_file(file_description)
+                yield file_description
 
-    def handle_file(self, file: FileDescription):
-        print(file.path)
+    def other_dirs_files(self):
+        """Generator for all files in other dirs"""
+        for directory in self.configuration.other_dirs:
+            for file_description in self.other_dirs_files[directory]:
+                yield file_description
 
-        if file.is_empty():
-            self.handle_delete_empty(file)
+    def list_all_files(self):
+        for file in self.all_files():
+            print(file.path)
 
-        if file.access_rights != self.configuration.default_file_access_rights:
-            self.handle_change_access_rights(file)
+    def run(self):
+        self.list_all_files()
+
+        print("Looking for empty files to delete")
+        for file in self.all_files():
+            if file.is_empty():
+                self.handle_delete_empty(file)
+
+        self.load_file_info()
+        self.list_all_files()
+
+        print("Looking for files with non-standard permissions")
+        for file in self.all_files():
+            if file.access_rights != self.configuration.default_file_access_rights:
+                self.handle_change_access_rights(file)
 
     def handle_delete_empty(self, file: FileDescription):
         should_delete = self.configuration.default_actions.delete
 
         if should_delete is None:
-            should_delete = get_input("Delete empty file?", ["Y", "n"]) == "Y"
+            should_delete = get_input(f"{file.path} Delete empty file?", ["Y", "n"]) == "Y"
 
         if should_delete:
             os.remove(file.path)
@@ -229,7 +247,7 @@ class App:
 
         if should_change is None:
             should_change = get_input(
-                f"File has {file.access_rights}, change to {defaults}?",
+                f"{file.path} File has {file.access_rights}, change to {defaults}?",
                 ["Y", "n"]
             ) == "Y"
 
