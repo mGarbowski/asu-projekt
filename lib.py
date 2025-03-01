@@ -139,10 +139,16 @@ def list_files_in_directory(directory: str) -> List[str]:
 class App:
     def __init__(self, configuration: Configuration):
         self.configuration = configuration
-        self.main_dir_files = FileDescription.from_directory(self.configuration.main_dir)
+        self.main_dir_files: List[FileDescription] = FileDescription.from_directory(self.configuration.main_dir)
         self.other_dirs_files: Dict[str, List[FileDescription]] = {}
 
-        for other_dir in configuration.other_dirs:
+        self.load_file_info()
+
+
+    def load_file_info(self):
+        self.main_dir_files = FileDescription.from_directory(self.configuration.main_dir)
+
+        for other_dir in self.configuration.other_dirs:
             self.other_dirs_files[other_dir] = FileDescription.from_directory(other_dir)
 
     def run(self):
