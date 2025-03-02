@@ -18,7 +18,6 @@ def main():
         main_dir=args.main_dir,
         other_dirs=args.other_dirs,
         config_path=args.config,
-        default_actions=DefaultActions.create()
     )
 
     app = App(config)

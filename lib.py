@@ -25,7 +25,7 @@ class DefaultActions:
     rename: Optional[bool]  # Without problematic chars
 
     @classmethod
-    def create(cls) -> DefaultActions:
+    def always_prompt(cls) -> DefaultActions:
         return cls(
             copy=None,
             delete=None,
@@ -34,6 +34,28 @@ class DefaultActions:
             set_default_attributes=None,
             rename=None,
         )
+
+    @classmethod
+    def from_config(cls, config: ConfigParser) -> DefaultActions:
+        return cls(
+            copy=cls._parse_optional_flag(config.get("ACTIONS", "copy")),
+            delete=cls._parse_optional_flag(config.get("ACTIONS", "delete")),
+            replace_old_version=cls._parse_optional_flag(config.get("ACTIONS", "replace_old_version")),
+            replace_new_version=cls._parse_optional_flag(config.get("ACTIONS", "replace_new_version")),
+            set_default_attributes=cls._parse_optional_flag(config.get("ACTIONS", "set_default_attributes")),
+            rename=cls._parse_optional_flag(config.get("ACTIONS", "rename")),
+        )
+
+    @staticmethod
+    def _parse_optional_flag(flag: str) -> Optional[bool]:
+        if flag == "True":
+            return True
+        elif flag == "False":
+            return False
+        elif flag == "None":
+            return None
+
+        raise ValueError("Expected 'True', 'False' or 'None'")
 
 
 @dataclass
@@ -47,8 +69,7 @@ class Configuration:
     default_actions: DefaultActions
 
     @classmethod
-    def create(cls, main_dir: str, other_dirs: List[str], config_path: str,
-               default_actions: DefaultActions) -> Configuration:
+    def create(cls, main_dir: str, other_dirs: List[str], config_path: str) -> Configuration:
         if not cls.is_configuration_file_accessible(config_path):
             raise ValueError(f"Cannot access configuration file: {config_path}")
 
@@ -58,6 +79,8 @@ class Configuration:
 
         config = ConfigParser()
         config.read(config_path)
+
+        default_actions = DefaultActions.from_config(config)
 
         return cls(
             main_dir=main_dir,
