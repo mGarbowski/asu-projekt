@@ -1,4 +1,37 @@
 #!/usr/bin/python3
+"""
+This script is designed to clean up files in a specified main directory and other directories.
+It performs various file operations such as deleting empty or temporary files, handling duplicates,
+renaming files with problematic characters, and moving or copying files to the main directory.
+
+The script uses a configuration file (`clean_files.ini`) to define default actions and settings.
+It can operate in both interactive and non-interactive modes based on the configuration.
+
+Main functionalities include:
+- Deleting empty files
+- Deleting temporary files based on their extensions
+- Handling duplicate files by content (MD5 hash) - select one to leave and delete others
+- Handling files with the same name - select one to leave and delete others
+- Renaming files with problematic characters in their names
+- Changing file permissions to default settings
+- Moving or copying files from other directories to the main directory
+
+Usage:
+    python3 main.py <main_dir> <other_dirs> [--config <config_path>]
+
+Arguments:
+    main_dir: The main directory to clean up.
+    other_dirs: Other directories to include in the cleanup process.
+    --config: Optional path to the configuration file (default: ./clean_files.ini).
+
+Requirements:
+    - Python 3.8+
+    - No external dependencies
+
+Author:
+    Mikołaj Garbowski
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +51,9 @@ class DefaultActions:
     """Default actions for found files
 
     If set to None - user will be prompted for each file
+    Otherwise, action will be non-interactive
+
+    Consult the 'ACTIONS' section of the clean_files.ini file for more information
     """
     copy: Optional[bool]  # If set to false then move instead of copying
     delete: Optional[bool]  # Duplicate, empty or temp file
@@ -28,6 +64,7 @@ class DefaultActions:
 
     @classmethod
     def always_prompt(cls) -> DefaultActions:
+        """Factory for configuration that will prompt the user for each action"""
         return cls(
             copy=None,
             delete=None,
@@ -39,6 +76,7 @@ class DefaultActions:
 
     @classmethod
     def from_config(cls, config: ConfigParser) -> DefaultActions:
+        """Factory for parsing configuration loaded from .ini file"""
         return cls(
             copy=cls._parse_optional_flag(config.get("ACTIONS", "copy")),
             delete=cls._parse_optional_flag(config.get("ACTIONS", "delete")),
@@ -62,6 +100,7 @@ class DefaultActions:
 
 @dataclass
 class Configuration:
+    """Configuration for the execution of the script"""
     main_dir: str
     other_dirs: List[str]
     default_file_access_rights: str
@@ -72,6 +111,7 @@ class Configuration:
 
     @classmethod
     def create(cls, main_dir: str, other_dirs: List[str], config_path: str) -> Configuration:
+        """Factory for creating Configuration based on .ini file and list of directories"""
         if not cls.is_configuration_file_accessible(config_path):
             raise ValueError(f"Cannot access configuration file: {config_path}")
 
@@ -96,16 +136,19 @@ class Configuration:
 
     @staticmethod
     def is_valid_directory(path: str):
+        """Checks if path is a directory and is accessible"""
         return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
 
     @staticmethod
     def is_configuration_file_accessible(path: str):
+        """Checks if path is a readable file"""
         return os.path.isfile(path) and os.access(path, os.R_OK)
 
 
 @dataclass
 class FileDescription:
-    path: str  # Relative to root_dir
+    """Representation of a file in the filesystem"""
+    path: str  # Relative
     access_rights: str
     md5_hash: str
     size: int  # Bytes
@@ -113,6 +156,7 @@ class FileDescription:
 
     @classmethod
     def from_path(cls, path: str) -> FileDescription:
+        """Factory, loads information from the filesystem"""
         return cls(
             path=path,
             access_rights=cls._get_file_access_rights(path),
@@ -123,6 +167,7 @@ class FileDescription:
 
     @classmethod
     def from_directory(cls, dir_path: str) -> List[FileDescription]:
+        """Factory, creates instances for all files in a given directory"""
         return [
             cls.from_path(os.path.join(dir_path, file_path))
             for file_path in list_files_in_directory(dir_path)
@@ -130,35 +175,42 @@ class FileDescription:
 
     @staticmethod
     def _get_file_md5(path: str) -> str:
+        """MD5 hash of the file contents for speeding up comparing large files"""
         with open(path, mode="rb") as file:
             return md5(file.read()).hexdigest()
 
     @staticmethod
     def _get_file_size(path: str) -> int:
+        """Read file size in bytes from the filesystem"""
         return os.path.getsize(path)
 
     @staticmethod
     def _get_file_access_rights(path: str) -> str:
+        """Read file permissions from the filesystem as rwxrwxrwx string"""
         return stat.filemode(os.stat(path).st_mode)[1:]
 
     @staticmethod
     def _get_modification_time(path: str) -> float:
+        """Read modification timestamp from the filesystem"""
         return os.stat(path).st_mtime
 
     @property
     def filename(self) -> str:
+        """Extract filename from the path"""
         return os.path.basename(self.path)
 
     @property
     def extension(self) -> str:
+        """Extract extension from the path (includes the dot)"""
         return os.path.splitext(self.path)[1]
 
     def is_empty(self) -> bool:
+        """Size in bytes equal to 0"""
         return self.size == 0
 
 
 def list_files_in_directory(directory: str) -> List[str]:
-    """Return a list of relative paths of all files in the given directory and its subdirectories."""
+    """Return a list of relative paths of all files in the given directory and its subdirectories"""
     return [
         os.path.relpath(os.path.join(root, file), directory)
         for root, _, files in os.walk(directory)
@@ -167,6 +219,7 @@ def list_files_in_directory(directory: str) -> List[str]:
 
 
 def get_input(prompt: str, options: List[str]) -> str:
+    """Make the user select one of the displayed options"""
     options = f"[{'/'.join(options)}]"
 
     while True:
@@ -211,6 +264,11 @@ def permission_string_to_numeric(permissions: str) -> int:
 
 
 class App:
+    """Main class of the application, handles various file operations
+
+    Consult the module doc comment for more details
+    """
+
     def __init__(self, configuration: Configuration):
         self.configuration = configuration
         self.main_dir_files: List[FileDescription] = FileDescription.from_directory(self.configuration.main_dir)
@@ -219,13 +277,14 @@ class App:
         self.load_file_info()
 
     def load_file_info(self):
+        """Load current information about all the files in main and other directories from the filesystem"""
         self.main_dir_files = FileDescription.from_directory(self.configuration.main_dir)
 
         for other_dir in self.configuration.other_dirs:
             self.other_dirs_files[other_dir] = FileDescription.from_directory(other_dir)
 
     def all_files(self) -> Generator[FileDescription]:
-        """Generator for all files"""
+        """Generator for all files (main and other directories)"""
         for file_description in self.main_dir_files:
             yield file_description
 
@@ -240,10 +299,12 @@ class App:
                 yield directory, file_description
 
     def list_all_files(self):
+        """Display a list of all files (main and other directories)"""
         for file in self.all_files():
             print(file.path)
 
     def run(self):
+        """Execute the main operations of the script"""
         self.list_all_files()
 
         self.handle_delete_empty_files()
@@ -257,6 +318,11 @@ class App:
         self.list_all_files()
 
     def handle_problematic_names(self):
+        """Find files with names containing problematic characters and suggest renaming them
+
+        Problematic characters and the substitute are defined in Configuration
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for files with problematic names")
         for file in self.all_files():
             if self.is_name_problematic(file.filename):
@@ -264,6 +330,11 @@ class App:
         self.load_file_info()
 
     def handle_non_standard_permissions(self):
+        """Find files with non-standard permissions and suggest changing them to the defaults
+
+        Default permissions are defined in Configuration
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for files with non-standard permissions")
 
         for file in self.all_files():
@@ -273,6 +344,11 @@ class App:
         self.load_file_info()
 
     def handle_delete_temporary_files(self):
+        """Find temporary files and suggest deleting them
+
+        Files are considered temporary based on their extension (or suffix) as defined in Configuration
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for temporary files to delete")
         for file in self.all_files():
             if self.is_temp_file(file):
@@ -280,15 +356,18 @@ class App:
         self.load_file_info()
 
     def handle_delete_empty_files(self):
+        """Find empty files and suggest deleting them
+
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for empty files to delete")
         for file in self.all_files():
             if file.is_empty():
                 self.handle_delete(file)
         self.load_file_info()
 
-    # TODO doc comments
-
     def handle_delete(self, file: FileDescription):
+        """Handle deleting a single file, interactive or non-interactive as per DefaultActions configuration"""
         should_delete = self.configuration.default_actions.delete
 
         if should_delete is None:
@@ -301,6 +380,7 @@ class App:
             print(f"Skipping file: {file.path}")
 
     def handle_change_access_rights(self, file: FileDescription):
+        """Handle modifying permissions (chmod) of a single file, interactive or non-interactive as per configuration"""
         should_change = self.configuration.default_actions.set_default_attributes
         defaults = self.configuration.default_file_access_rights
 
@@ -318,12 +398,14 @@ class App:
             print(f"Skipping file: {file.path}")
 
     def is_temp_file(self, file: FileDescription):
+        """Files are considered temporary based on filename suffix (list defined in configuration)"""
         return any(
             file.filename.endswith(extension)
             for extension in self.configuration.temp_file_suffixes
         )
 
     def get_all_files_by_hash(self, md5_hash: str) -> List[FileDescription]:
+        """List of all files (main and other dirs) whose content matches given hash"""
         return [
             file
             for file in self.all_files()
@@ -331,6 +413,7 @@ class App:
         ]
 
     def get_all_files_by_name(self, name: str) -> List[FileDescription]:
+        """List of all files (main and other dirs) with given filename"""
         return [
             file
             for file in self.all_files()
@@ -352,6 +435,12 @@ class App:
             print(f"Deleted {file.path}")
 
     def handle_duplicates(self):
+        """Find duplicate files and select one of them to leave, deleting others
+
+        Suggest leaving the oldest copy (assumed original)
+        Files are considered duplicates if md5 hashes of their content are equal
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for duplicate files (same content)")
         already_handled_hashes = set()
 
@@ -384,6 +473,11 @@ class App:
         self.load_file_info()
 
     def handle_same_names(self):
+        """Find files with the same names and select one of them to leave, deleting others
+
+        Suggest leaving the most recently modified (assumed newest version)
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print("Looking for files with the same name")
         already_handled_names = set()
 
@@ -416,6 +510,7 @@ class App:
         self.load_file_info()
 
     def is_name_problematic(self, filename: str) -> bool:
+        """Does filename contain problematic characters"""
         return any(
             problematic_char in filename
             for problematic_char in self.configuration.problematic_chars
@@ -429,6 +524,10 @@ class App:
         return filename
 
     def handle_rename(self, file: FileDescription):
+        """Handle renaming a single file to remove problematic characters
+
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         new_name = self.clean_filename(file.filename)
 
         should_rename = self.configuration.default_actions.rename
@@ -444,6 +543,10 @@ class App:
             print(f"Skipping file {file.path}")
 
     def handle_move_all_files_to_main_dir(self):
+        """Move or copy all files from other directories to the main directory
+
+        Interactive or non-interactive as per DefaultActions configuration
+        """
         print(f"Moving all files to the main directory {self.configuration.main_dir}")
 
         for other_dir, file in self.all_other_files():
