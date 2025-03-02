@@ -19,8 +19,8 @@ class DefaultActions:
     """
     copy: Optional[bool]  # If set to false then move instead of copying
     delete: Optional[bool]  # Duplicate, empty or temp file
-    replace_old_version: Optional[bool]  # For files with the same content TODO
-    replace_new_version: Optional[bool]  # For files with the same name TODO
+    replace_old_version: Optional[bool]  # For files with the same content
+    replace_new_version: Optional[bool]  # For files with the same name
     set_default_attributes: Optional[bool]
     rename: Optional[bool]  # Without problematic chars
 
@@ -284,7 +284,6 @@ class App:
                 self.handle_delete(file)
         self.load_file_info()
 
-    # TODO load default actions from config file
     # TODO move all to main.py
     # TODO doc comments
 
@@ -362,11 +361,21 @@ class App:
             already_handled_hashes.add(file.md5_hash)
 
             copies = self.get_all_files_by_hash(file.md5_hash)
+            copies.sort(key=lambda f: f.modification_timestamp)
+
             if len(copies) == 1:
                 continue
 
+            if self.configuration.default_actions.replace_old_version:
+                print(f"Leaving file {copies[0].path}")
+                for copy in copies[1:]:
+                    os.remove(copy.path)
+                    print(f"Deleted {copy.path}")
+
+                continue
+
             print("Found duplicate files")
-            for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp)):
+            for idx, file_copy in enumerate(copies):
                 print(f"[{idx}] {file_copy.path}{' --- oldest copy' if idx == 0 else ''}")
 
             self._select_file_to_leave(copies)
@@ -384,11 +393,21 @@ class App:
             already_handled_names.add(file.filename)
 
             copies = self.get_all_files_by_name(file.filename)
+            copies.sort(key=lambda f: f.modification_timestamp, reverse=True)
+
             if len(copies) == 1:
                 continue
 
+            if self.configuration.default_actions.replace_new_version:
+                print(f"Leaving file {copies[0].path}")
+                for copy in copies[1:]:
+                    os.remove(copy.path)
+                    print(f"Deleted {copy.path}")
+
+                continue
+
             print("Found files with the same name")
-            for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp, reverse=True)):
+            for idx, file_copy in enumerate(copies):
                 print(f"[{idx}] {file_copy.path}{' --- most recently modified' if idx == 0 else ''}")
 
             self._select_file_to_leave(copies)
