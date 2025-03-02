@@ -304,7 +304,11 @@ class App:
             print(file.path)
 
     def run(self):
-        """Execute the main operations of the script"""
+        """Execute the main operations of the script
+
+        Reloads information from the filesystem multiple times as each operation can modify or delete files.
+        """
+        print("Found files:")
         self.list_all_files()
 
         self.handle_delete_empty_files()
@@ -315,6 +319,7 @@ class App:
         self.handle_problematic_names()
         self.handle_move_all_files_to_main_dir()
 
+        print("Finished. Remaining files:")
         self.list_all_files()
 
     def handle_problematic_names(self):
