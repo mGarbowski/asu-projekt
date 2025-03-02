@@ -304,6 +304,20 @@ class App:
             if file.filename == name
         ]
 
+    @staticmethod
+    def _select_file_to_leave(files: List[FileDescription]):
+        """Prompt the user to select one file from the list to leave, the rest will be deleted"""
+        choice = int(get_input(
+            "Which do you want to leave?",
+            [str(idx) for idx in range(len(files))]
+        ))
+        print(f"Leaving file {files[choice].path}")
+        files.pop(choice)
+
+        for file in files:
+            os.remove(file.path)
+            print(f"Deleted {file.path}")
+
     def handle_duplicates(self):
         already_handled_hashes = set()
 
@@ -319,22 +333,9 @@ class App:
 
             print("Found duplicate files")
             for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp)):
-                msg = f"[{idx}] {file_copy.path}"
-                if idx == 0:
-                    msg += " --- oldest copy"
+                print(f"[{idx}] {file_copy.path}{' --- oldest copy' if idx == 0 else ''}")
 
-                print(msg)
-
-            choice = int(get_input(
-                "Which do you want to leave?",
-                [str(idx) for idx in range(len(copies))]
-            ))
-            print(f"Leaving file {copies[choice].path}")
-            copies.pop(choice)
-
-            for copy in copies:
-                os.remove(copy.path)
-                print(f"Deleted duplicate {copy.path}")
+            self._select_file_to_leave(copies)
 
     def handle_same_names(self):
         already_handled_names = set()
@@ -351,20 +352,6 @@ class App:
 
             print("Found files with the same name")
             for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp, reverse=True)):
-                msg = f"[{idx}] {file_copy.path}"
-                if idx == 0:
-                    msg += " --- most recently modified"
+                print(f"[{idx}] {file_copy.path}{' --- most recently modified' if idx == 0 else ''}")
 
-                print(msg)
-
-            choice = int(get_input(
-                "Which do you want to leave?",
-                [str(idx) for idx in range(len(copies))]
-            ))
-            print("Leaving file {copies[choice].path}")
-            copies.pop(choice)
-
-            for copy in copies:
-                os.remove(copy.path)
-                print(f"Deleted file {copy.path}")
-
+            self._select_file_to_leave(copies)
