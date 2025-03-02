@@ -223,49 +223,45 @@ class App:
     def run(self):
         self.list_all_files()
 
-        print("Looking for empty files to delete")
-        for file in self.all_files():
-            if file.is_empty():
-                self.handle_delete(file)
-
-        self.load_file_info()
-        self.list_all_files()
-
-        print("Looking for temporary files to delete")
-        for file in self.all_files():
-            if self.is_temp_file(file):
-                self.handle_delete(file)
-
-        self.load_file_info()
-        self.list_all_files()
-
-        print("Looking for duplicate files (same content)")
+        self.handle_delete_empty_files()
+        self.handle_delete_temporary_files()
         self.handle_duplicates()
-
-        self.load_file_info()
-        self.list_all_files()
-
-        print("Looking for files with the same name")
         self.handle_same_names()
+        self.handle_non_standard_permissions()
+        self.handle_problematic_names()
+        self.handle_move_all_files_to_main_dir()
 
-        self.load_file_info()
         self.list_all_files()
 
-        print("Looking for files with non-standard permissions")
-        for file in self.all_files():
-            if file.access_rights != self.configuration.default_file_access_rights:
-                self.handle_change_access_rights(file)
-
+    def handle_problematic_names(self):
         print("Looking for files with problematic names")
         for file in self.all_files():
             if self.is_name_problematic(file.filename):
                 self.handle_rename(file)
+        self.load_file_info()
+
+    def handle_non_standard_permissions(self):
+        print("Looking for files with non-standard permissions")
+
+        for file in self.all_files():
+            if file.access_rights != self.configuration.default_file_access_rights:
+                self.handle_change_access_rights(file)
 
         self.load_file_info()
-        self.list_all_files()
 
-        self.handle_move_all_files_to_main_dir()
-        self.list_all_files()
+    def handle_delete_temporary_files(self):
+        print("Looking for temporary files to delete")
+        for file in self.all_files():
+            if self.is_temp_file(file):
+                self.handle_delete(file)
+        self.load_file_info()
+
+    def handle_delete_empty_files(self):
+        print("Looking for empty files to delete")
+        for file in self.all_files():
+            if file.is_empty():
+                self.handle_delete(file)
+        self.load_file_info()
 
     # TODO load default actions from config file
     # TODO move all to main.py
@@ -335,6 +331,7 @@ class App:
             print(f"Deleted {file.path}")
 
     def handle_duplicates(self):
+        print("Looking for duplicate files (same content)")
         already_handled_hashes = set()
 
         for file in self.all_files():
@@ -353,7 +350,10 @@ class App:
 
             self._select_file_to_leave(copies)
 
+        self.load_file_info()
+
     def handle_same_names(self):
+        print("Looking for files with the same name")
         already_handled_names = set()
 
         for file in self.all_files():
@@ -371,6 +371,8 @@ class App:
                 print(f"[{idx}] {file_copy.path}{' --- most recently modified' if idx == 0 else ''}")
 
             self._select_file_to_leave(copies)
+
+        self.load_file_info()
 
     def is_name_problematic(self, filename: str) -> bool:
         return any(
