@@ -255,11 +255,18 @@ class App:
             if file.access_rights != self.configuration.default_file_access_rights:
                 self.handle_change_access_rights(file)
 
-        # TODO fix names
-        # TODO load default actions from config file
-        # TODO move all files to main dir
-        # TODO move all to main.py
-        # TODO doc comments
+        print("Looking for files with problematic names")
+        for file in self.all_files():
+            if self.is_name_problematic(file.filename):
+                self.handle_rename(file)
+
+        self.load_file_info()
+        self.list_all_files()
+
+    # TODO load default actions from config file
+    # TODO move all files to main dir
+    # TODO move all to main.py
+    # TODO doc comments
 
     def handle_delete(self, file: FileDescription):
         should_delete = self.configuration.default_actions.delete
@@ -361,3 +368,31 @@ class App:
                 print(f"[{idx}] {file_copy.path}{' --- most recently modified' if idx == 0 else ''}")
 
             self._select_file_to_leave(copies)
+
+    def is_name_problematic(self, filename: str) -> bool:
+        return any(
+            problematic_char in filename
+            for problematic_char in self.configuration.problematic_chars
+        )
+
+    def clean_filename(self, filename: str) -> str:
+        """Return a filename with problematic chars replaced with a substitute char"""
+        for char in self.configuration.problematic_chars:
+            filename = filename.replace(char, self.configuration.substitute_char)
+
+        return filename
+
+    def handle_rename(self, file: FileDescription):
+        new_name = self.clean_filename(file.filename)
+
+        should_rename = self.configuration.default_actions.rename
+        if should_rename is None:
+            should_rename = get_input(f"Rename file {file.path} to {new_name}?", ["Y", "n"]) == "Y"
+
+        if should_rename:
+            directory, _ = os.path.split(file.path)
+            new_path = os.path.join(directory, new_name)
+            os.rename(file.path, new_path)
+            print(f"Renamed {file.path} to {new_path}")
+        else:
+            print(f"Skipping file {file.path}")
