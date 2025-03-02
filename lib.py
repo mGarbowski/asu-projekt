@@ -241,6 +241,15 @@ class App:
         print("Looking for duplicate files (same content)")
         self.handle_duplicates()
 
+        self.load_file_info()
+        self.list_all_files()
+
+        print("Looking for files with the same name")
+        self.handle_same_names()
+
+        self.load_file_info()
+        self.list_all_files()
+
         print("Looking for files with non-standard permissions")
         for file in self.all_files():
             if file.access_rights != self.configuration.default_file_access_rights:
@@ -281,11 +290,18 @@ class App:
             for extension in self.configuration.temp_file_suffixes
         )
 
-    def get_all_files_matching(self, md5_hash: str) -> List[FileDescription]:
+    def get_all_files_by_hash(self, md5_hash: str) -> List[FileDescription]:
         return [
             file
             for file in self.all_files()
             if file.md5_hash == md5_hash
+        ]
+
+    def get_all_files_by_name(self, name: str) -> List[FileDescription]:
+        return [
+            file
+            for file in self.all_files()
+            if file.filename == name
         ]
 
     def handle_duplicates(self):
@@ -297,7 +313,7 @@ class App:
 
             already_handled_hashes.add(file.md5_hash)
 
-            copies = self.get_all_files_matching(file.md5_hash)
+            copies = self.get_all_files_by_hash(file.md5_hash)
             if len(copies) == 1:
                 continue
 
@@ -319,3 +335,36 @@ class App:
             for copy in copies:
                 os.remove(copy.path)
                 print(f"Deleted duplicate {copy.path}")
+
+    def handle_same_names(self):
+        already_handled_names = set()
+
+        for file in self.all_files():
+            if file.filename in already_handled_names:
+                continue
+
+            already_handled_names.add(file.filename)
+
+            copies = self.get_all_files_by_name(file.filename)
+            if len(copies) == 1:
+                continue
+
+            print("Found files with the same name")
+            for idx, file_copy in enumerate(sorted(copies, key=lambda f: f.modification_timestamp, reverse=True)):
+                msg = f"[{idx}] {file_copy.path}"
+                if idx == 0:
+                    msg += " --- most recently modified"
+
+                print(msg)
+
+            choice = int(get_input(
+                "Which do you want to leave?",
+                [str(idx) for idx in range(len(copies))]
+            ))
+            print("Leaving file {copies[choice].path}")
+            copies.pop(choice)
+
+            for copy in copies:
+                os.remove(copy.path)
+                print(f"Deleted file {copy.path}")
+
