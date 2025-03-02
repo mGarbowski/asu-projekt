@@ -19,11 +19,10 @@ class DefaultActions:
     """
     copy: Optional[bool]  # If set to false then move instead of copying
     delete: Optional[bool]  # Duplicate, empty or temp file
-    replace_old_version: Optional[bool]  # For files with the same content
-    replace_new_version: Optional[bool]  # For files with the same name
+    replace_old_version: Optional[bool]  # For files with the same content TODO
+    replace_new_version: Optional[bool]  # For files with the same name TODO
     set_default_attributes: Optional[bool]
     rename: Optional[bool]  # Without problematic chars
-    do_nothing: Optional[bool]  # Only display
 
     @classmethod
     def create(cls) -> DefaultActions:
@@ -34,7 +33,6 @@ class DefaultActions:
             replace_new_version=None,
             set_default_attributes=None,
             rename=None,
-            do_nothing=None
         )
 
 
