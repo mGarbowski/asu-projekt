@@ -255,6 +255,12 @@ class App:
             if file.access_rights != self.configuration.default_file_access_rights:
                 self.handle_change_access_rights(file)
 
+        # TODO fix names
+        # TODO load default actions from config file
+        # TODO move all files to main dir
+        # TODO move all to main.py
+        # TODO doc comments
+
     def handle_delete(self, file: FileDescription):
         should_delete = self.configuration.default_actions.delete
 
