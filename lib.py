@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 from configparser import ConfigParser
 from dataclasses import dataclass
 from hashlib import md5
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple, Generator
 
 DEFAULT_CONFIG_FILE_PATH = "~/.clean_files"
 
@@ -200,7 +201,7 @@ class App:
         for other_dir in self.configuration.other_dirs:
             self.other_dirs_files[other_dir] = FileDescription.from_directory(other_dir)
 
-    def all_files(self):
+    def all_files(self) -> Generator[FileDescription]:
         """Generator for all files"""
         for file_description in self.main_dir_files:
             yield file_description
@@ -209,11 +210,11 @@ class App:
             for file_description in self.other_dirs_files[directory]:
                 yield file_description
 
-    def other_dirs_files(self):
+    def all_other_files(self) -> Generator[Tuple[str, FileDescription]]:
         """Generator for all files in other dirs"""
         for directory in self.configuration.other_dirs:
             for file_description in self.other_dirs_files[directory]:
-                yield file_description
+                yield directory, file_description
 
     def list_all_files(self):
         for file in self.all_files():
@@ -263,8 +264,10 @@ class App:
         self.load_file_info()
         self.list_all_files()
 
+        self.handle_move_all_files_to_main_dir()
+        self.list_all_files()
+
     # TODO load default actions from config file
-    # TODO move all files to main dir
     # TODO move all to main.py
     # TODO doc comments
 
@@ -396,3 +399,24 @@ class App:
             print(f"Renamed {file.path} to {new_path}")
         else:
             print(f"Skipping file {file.path}")
+
+    def handle_move_all_files_to_main_dir(self):
+        print(f"Moving all files to the main directory {self.configuration.main_dir}")
+
+        for other_dir, file in self.all_other_files():
+            new_path = file.path.replace(other_dir, self.configuration.main_dir)
+
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)  # mkdir -p before moving a deeply nested file
+
+            should_copy = self.configuration.default_actions.copy
+            if should_copy is None:
+                should_copy = get_input(f"Move or copy {file.path}?", ["m", "c"]) == "c"
+
+            if should_copy:
+                shutil.copy(file.path, new_path)
+                print(f"Copied {file.path} to {new_path}")
+            else:
+                shutil.move(file.path, new_path)
+                print(f"Moved {file.path} to {new_path}")
+
+        self.load_file_info()
